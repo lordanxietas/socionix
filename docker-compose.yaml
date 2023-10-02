@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14
+    command: "postgres -p 5432"
+    expose:
+      - 5432
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=socionix
+    networks:
+      - default
+    volumes:
+      - :/var/lib/postgresql/data:rw
+  bot:
+    container_name: socionix
+    build: ./bot
+    expose:
+      - 3001
+    extra_hosts:
+      - "nginx_bot:1.1.1.1"
+    volumes:
+      - /app:/home/socionix/bot_data:rw
+    command: ["bash", "start.sh"]
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/socionix
+      - WEBHOOK_LOCAL_PORT=3001
+      - WEBHOOK_LOCAL_HOST=bot
+      - BOT_TOKEN=
+      - WEBHOOK_URL=
+    networks:
+      - default
+    
+    depends_on:
+      - db
+  adminer:
+    image: adminer:4.7
+    expose:
+      - 8005
+    networks:
+      - default
+    extra_hosts:
+      #Просто внутри контейнера изменяет IP адреса привязанные к контейнерам
+      - "nginx_adminer:1.1.1.2"
+    depends_on:
+      - bot
+  nginx:
+    build: ./nginx
+    ports:
+      - 3800:3800
+    networks:
+      default:
+        ipv4_address: 172.28.0.32
+    depends_on:
+      - adminer
+    # доступ к adminer будет осуществляться по адресу
+    # anxietas-facing.ru/adminer
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.1
+    
